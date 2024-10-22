@@ -1,7 +1,7 @@
 # Multi-Modal-Music-Mapping
 Code for running HMM, statistical analyses, and figure from Faber et al., 2025
 
-[The link to the pre-print is here] (https://www.biorxiv.org/content/10.1101/2023.07.05.547865v2)
+[The link to the pre-print is here] (/https://www.biorxiv.org/content/10.1101/2023.07.05.547865v2)
 
 This repository contains the following:
 1. HMM Estimation for the EEG data
