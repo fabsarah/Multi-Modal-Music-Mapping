@@ -1,0 +1,87 @@
+%% HMM with rest and task data
+% The following is code that I wrote for a music listening task with
+% healthy adult EEG data. Before starting HMM, data were pre-processed
+% (filtered, rereferenced, cleaned, and source localized) in Brainstorm,
+% and each trial was added to a trial*participant cell array (in this case,
+% 53 possible trials*18 participants). This script will walk through the
+% following steps:
+%   1. Getting an array of empty values for missing data (this will help
+%   later)
+%   2. Vectorizing the data matrix
+%   3. Initializing the HMM parameters
+%   4. Running/saving the HMM analysis
+%   5. Extracting metrics using the HMM toolbox
+
+%% 1. Getting the non-empty index for rest and task
+%All_Data here is my cell array:
+%  (all cells need to be in time*source order...rows are timepoints, columns are ROIs/sources/electrodes)
+load('All_Data.mat')
+
+N_nonempty = cell(size(All_Data,2),1);%initialize the output array
+for subject = 1:size(N_nonempty,1)%participants
+subjectdata = All_Data(:,subject);%get the relevant column
+N_nonempty{subject} = find(~cellfun(@isempty,subjectdata));%find the empty cells, add them to the new array
+end
+
+clear inmat subject subjectdata %make look nice
+
+%% 2. Vectorizing
+
+data = reshape(All_Data,[],1);%reshape the data
+index = cellfun(@isempty, data) == 0;%find the empty cells
+data = data(index);%destroy them! (keep only the full cells)
+clear index
+
+%% 3. Initializing Parameters
+clear T % make sure there isn't another T kicking around
+K = 12; % number of states you want
+ndim = 68; % number of channels/sources/regions you have
+time = 10;% number of timepoints you have per trial
+N = 1; % number of trials (my procedure didn't repeat anything, so N=1)
+Fs = 512;% sampling rate
+T(1:length(data)) = {(Fs*time * ones(N,1))}; % number of data points per song (10 seconds*Fs = 5120)
+T = T';%transposing the T vector to match the dimensionality of our data vector
+
+%% 3.1 Setting the initialization parameters
+% A lot of the parameterization for HMM is very dependent on the type of data and the type of task
+% you have. I have continuous, source-localized EEG data, and these are the parameters I used. The
+% HMM-MAR toolbox goes over a lot of these in their wiki, which is very helpful: 
+% https://github.com/OHBA-analysis/HMM-MAR/wiki
+
+clear options % make sure there isn't an old options file in the workspace
+options = struct();
+options.K = K; 
+options.Fs = Fs;
+options.covtype = 'full';
+options.zeromean = 0;
+options.standardise = 1;
+options.onpower = 1;% Built-in Hilbert...good for EEG
+options.DirichletDiag = 10;% keeps states maximally distinct
+options.downsample = 256;% downsample the data (this will also be applied to T - yay!)
+options.detrend = 1;% detrending, for slow drifts
+options.pca = 0.90;% PCA-ing the data to save time, 90% of variance captured
+options.useParallel=1;% if you don't have parallel computing, set this to 0. My condolences, it will take more time
+options.verbose = 1;%tells you what's happening
+%the following can be toggled to save time, useful when running many estimations:
+%options.initrep = 1; % Initialize more quickly
+%options.initcyc = 1; % Always choose the first initialization
+%options.cyc = 90; % Maximum of  90 cycles
+
+%% 4. Run and save the HMM! 
+%This takes several hours and will kick up an error if T and data are not the same size
+[hmm, Gamma, Xi, vpath,~,~,~] = hmmmar(data,T,options);
+
+% Sending the output to a structure array
+Outdata12.hmm = hmm;
+Outdata12.Gamma = Gamma;
+Outdata12.vpath = vpath;
+filename = '/Users/Desktop/Outdata12.mat';
+save(filename, 'Outdata12');
+
+%% 4.1 Populate the structure with our input parameters and region labels
+Outdata12.T = T;
+Outdata12.options = options;
+Outdata12.labs = your_ROI_labels;%put your own label file here
+Outdata12.N_nonempty = N_nonempty;% and get the non-empty index - we'll need this for reassembling the matrix into input order later
+
+% and that's the HMM estimation! The next script file deals with extracting metrics (fractional occupancy, transitional probability, etc) from the estimation. 
