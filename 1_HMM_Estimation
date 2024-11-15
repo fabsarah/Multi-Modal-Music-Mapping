@@ -1,16 +1,17 @@
-%% HMM with rest and task data
+%% Estimating HMM with rest and task data
+
 % The following is code that I wrote for a music listening task with
 % healthy adult EEG data. Before starting HMM, data were pre-processed
 % (filtered, rereferenced, cleaned, and source localized) in Brainstorm,
 % and each trial was added to a trial*participant cell array (in this case,
 % 53 possible trials*18 participants). This script will walk through the
 % following steps:
+
 %   1. Getting an array of empty values for missing data (this will help
 %   later)
 %   2. Vectorizing the data matrix
 %   3. Initializing the HMM parameters
 %   4. Running/saving the HMM analysis
-%   5. Extracting metrics using the HMM toolbox
 
 %% 1. Getting the non-empty index for rest and task
 %All_Data here is my cell array:
@@ -84,4 +85,5 @@ Outdata12.options = options;
 Outdata12.labs = your_ROI_labels;%put your own label file here
 Outdata12.N_nonempty = N_nonempty;% and get the non-empty index - we'll need this for reassembling the matrix into input order later
 
-% and that's the HMM estimation! The next script file deals with extracting metrics (fractional occupancy, transitional probability, etc) from the estimation. 
+% and that's the HMM estimation! The next two script files deal with validating K and 
+% extracting metrics (fractional occupancy, transitional probability, etc) from the estimation. 
