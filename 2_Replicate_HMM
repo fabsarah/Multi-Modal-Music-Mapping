@@ -1,0 +1,423 @@
+%% Replicating the HMM run 
+% This script is for validating and replicating HMM estimations. We will first
+% run a bunch of HMM estimations, then test them. 
+
+%% Colormap:
+% ie. how we make this look like matplotlib :D
+rgb = [ ...   
+    94    79   162
+    72   104   175
+    50   136   189
+    76   160   177
+   102   194   165
+   136   210   165
+   171   221   164
+   200   233   158
+   230   245   152
+   243   250   199
+   255   255   255  % 0 is white
+   255   230   195
+   254   224   139
+   253   200   120
+   253   174    97
+   249   141    82
+   244   109    67
+   230    87    88
+   213    62    79
+   182    33    72
+   158     1    66  ] / 255; 
+% loading data
+%load('All_Data.mat')
+
+%% Getting the non-empty index for rest and task
+N_nonempty = cell(size(All_Data,2),1);
+for subject = 1:size(N_nonempty,1)
+subjectdata = All_Data(:,subject);
+N_nonempty{subject} = find(~cellfun(@isempty,subjectdata));
+end
+clear inmat subject subjectdata
+
+%% Vectorizing
+
+data = reshape(All_Data,[],1);%reshaping the data
+index = cellfun(@isempty, data) == 0;
+data = data(index);
+clear index
+
+%% Prep: Parameter Estimation
+clear T
+K = 12; % number of states
+ndim = 68; % number of channels
+N = 1; % number of trials (songs not repeated)
+Fs = 512;% sampling rate
+T(1:length(data)) = {(Fs*20 * ones(N,1))}; % number of data points per song (40 seconds*Fs = 20480)
+T = T';%transposing
+
+%% Prep: Setting the initialization parameters
+clear options
+options = struct();
+options.K = K; 
+options.Fs = Fs;
+options.covtype = 'full';
+options.zeromean = 0;
+options.standardise_pc = 1;
+options.onpower = 1;%Built-in Hilbert
+options.DirichletDiag = 10;
+options.downsample = 256;%downsample the data
+options.detrend = 1;
+options.pca = 0.90;% 90% of variance captured
+options.useParallel=1;
+options.verbose = 1;
+options.initrep = 1; % Initialize more quickly
+options.initcyc = 1; % Always choose the first initialization
+options.cyc = 90; % Maximum of  90 cycles
+
+
+%% for monitoring purposes, check free energy
+replications = 50;
+FreeEnergy = zeros(replications,1);
+all_FE = cell(replications,1);
+
+
+% fractional occupancy, and switching rate
+K = 12;
+num_dims = length(data);%how many cells are in the original data
+FO = zeros(num_dims,K);% 836 = dimensions of indata
+dFO = zeros(num_dims,K);
+
+% Run the HMM a lot of times
+for r = 1:replications
+    [hmm,Gamma] = hmmmar(data,T,options);
+    FO = zeros(836,12);
+    for j = 1:836
+        ind = (1:10240) + (j-1) * 10240;
+        FO(j,:) = mean(Gamma(ind,:));
+        dFO(j,:) = mean(abs(Gamma(ind(2:end),:) - Gamma(ind(1:end-1),:)));
+    end
+    all_FE{r} = dFO;
+    disp(num2str(r))
+end
+
+% save it in an array:
+EEG_Replication.all_FE = FE;
+EEG_Replication.all_FO = FO;
+EEG_Replication.all_FC = FC;
+EEG_Replication.all_TP = TP;
+
+%% compare the estimations for consistency
+addpath(genpath('STATIS-main'));
+
+temp_in = [EEG_Replication.all_FC'];
+temp_in = cat(3,temp_in{:});
+
+all_Result = distatis2(temp_in);
+
+%% Look at C (the similarity matrix)
+figure
+imagesc(all_Result.C)
+colorbar
+xticks([])
+yticks([])
+xlabel('States')
+ylabel('States')
+%clim([0 1])
+colormap(rgb(11:end,:))
+title('State Similarity Values: K = 12','FontSize',18)
+ylabel('States')
+xlabel('States')
+set(gcf,'Color','w')
+set(gca,'FontSize',16,'FontName','Helvetica')
+
+%% Now the meta-FE:
+
+all_FE = [EEG_Replication.all_FE];
+one_FE = nan(50,1);
+
+for i = 1:50
+    temp_FE = mean(mean(all_FE{i}));
+    one_FE(i) = temp_FE;
+end
+
+clear i temp*
+
+%% Look at it:
+figure
+plot(one_FE)
+grid on
+hold on
+plot(repmat(0.0299,50,1),'LineWidth',2)
+title('Free Energy Values: K = 12','FontSize',18)
+ylabel('Free Energy')
+xlabel('HMM Model Runs')
+set(gca,'FontSize',16,'FontName','Helvetica')
+set(gcf,'Color','w')
+
+
+%% Now the mean states:
+temp_in = nan(68,68,50);
+
+for rep = 1:50
+    tempcell = EEG_Replication.all_FC(rep,:);
+    tempcell = cat(3,tempcell{:});
+    tempcell = mean(tempcell,3);
+    temp_in(:,:,rep) = tempcell;
+end
+
+mean_Result = distatis2(temp_in);
+
+clear rep temp*
+
+%% Look at C
+figure
+imagesc(mean_Result.C)
+colorbar
+xticks([])
+yticks([])
+xlabel('States')
+ylabel('States')
+clim([0 1])
+colormap(rgb)
+
+
+%%% START HERE %%%
+
+
+%% Now look at the TP matrices!
+% load('EEG_KTest.mat')
+% load('/Users/sarahfaber/Desktop/Air Desktop/Sim Model Data/Rest_hmmPaper.mat')
+
+%% Plot the TP mats
+plotdata = cell(9,1);
+plotdata(1:6) = EEG_KTest.all_TP(1:6);
+plotdata{7} = EEG_Replication.all_TP{1};
+plotdata(8:9)= EEG_KTest.all_TP(7:8);
+kdex = [5:10,12,15,20];
+figure
+for i = 1:9
+    subplot(3,3,i)
+    shower_tile_plot(plotdata{i});
+    %clim([0 1])
+    colormap(rgb(1:11,:))
+    colorbar
+    yticks(1.5:20.5)
+    xticks(1.5:20.5)
+    yticklabels([])
+    xticklabels([])
+    ylabel('From State')
+    xlabel('To State')
+    pbaspect([1 1 1])
+    title(sprintf('Transitional Probability, K = %d',kdex(i)),'FontSize',12)
+end
+set(gcf,'Color','w')
+
+%% Plot the free energy values
+temp_FE(1:6) = EEG_KTest.all_FE(1:6);
+temp_FE{7} = EEG_Replication.all_FE{1};
+temp_FE(8:9) = EEG_KTest.all_FE(7:8);
+
+plotdata = nan(9,1);
+ebars = nan(9,2);
+
+for i = 1:9
+    temp_mean = mean(mean(temp_FE{i}));
+    temp_midpoint = std(mean(temp_FE{i}));
+    plotdata(i) = temp_mean;
+    ebars(i,1) = temp_mean+temp_midpoint;
+    ebars(i,2) = temp_mean-temp_midpoint;
+end
+
+clear i temp*
+%% look at it!
+figure
+bar(plotdata)
+hold on
+grid on
+%errorbar(1:length(z(1:limit,LV)),z(1:limit,LV),yneg-z(1:limit,LV),ypos-z(1:limit,LV),'.')
+errorbar(1:length(plotdata),plotdata,ebars(:,2)',ebars(:,1)','.');  
+xticklabels([5,6,7,8,9,10,12,15,20])
+title('Average Free Energy, Various Ks','FontSize',14)
+set(gcf,'Color','w')
+%% Run FO PLSes
+% Assemble new matrices
+temp_FO(1:6) = EEG_KTest.all_FO(1:6);
+temp_FO{7} = EEG_Replication.all_FO{1};
+temp_FO(8:9) = EEG_KTest.all_FO(7:8);
+%% 5.5.1 Switching Rate and Fractional Occupancy:
+FO_piece = cell(17,9);
+N_nonempty = Rest_hmmPaper.N_nonempty;
+%The current FO is a long column vectors of data (pieces*participants), so
+% next, we get it back in matrix and cell space:
+
+for est = 1:9
+    FO = temp_FO{est};
+    start = 1;% initialize a counter
+    tasks = 53;%how many tasks?
+    parts = 17;%how many participants?
+    K = size(FO,2);
+    tempmat_FO = cell(1,parts);%empty cell array for FO (task*state*participant)
+    for i = 1:parts% Participants
+        tempdataFO = nan(53,K);%initializing the FO matrix
+        dex = N_nonempty{i};% each participant's unique piece index
+        tempdataFO(dex,:) = FO(start:(start-1)+length(dex),:);% getting each participant's FO data
+        tempmat_FO{i} = tempdataFO;%putting it in a cell
+        start = start+length(dex);%rolling over the counter to pick up where this one left off
+    end
+    FO_piece(:,est) = tempmat_FO;
+end
+clear data options T temp SR FO start tempmat_SR tempmat_FO i dex tempdata array plotdata% make look nice
+
+%%
+% Get the task indices
+idx_rest = [1:5,48:53];
+idx_ctrl = [6:10,43:47];
+idx_exp = [11:42];
+%
+FO_rest = cell(9,1);
+FO_ctrl = cell(9,1);
+FO_exp = cell(9,1);
+for est = 1:9
+    K = size(FO_piece{1,est},2);
+    temp_restmat = nan(17,K);
+    temp_ctrlmat = nan(17,K);
+    temp_expmat = nan(17,K);
+    for part = 1:17
+        tempFO = FO_piece{part,est};
+        temp_rest = tempFO(idx_rest,:);
+        temp_ctrl = tempFO(idx_ctrl,:);
+        temp_exp = tempFO(idx_exp,:);
+        temp_restmat(part,:) = nanmean(temp_rest);
+        temp_ctrlmat(part,:) = nanmean(temp_ctrl);
+        temp_expmat(part,:) = nanmean(temp_exp);
+    end
+    FO_rest{est} = temp_restmat;
+    FO_ctrl{est} = temp_ctrlmat;
+    FO_exp{est} = temp_expmat;
+end
+clear est part idx* temp* K
+%% Appetizer PLS
+%addpath(genpath('Pls'))
+%FO_data = K_tests;
+FO_results = cell(9,1);
+for k = 1:9
+    indata = {FO_rest{k};FO_ctrl{k};FO_exp{k}};
+    numsubs = nan(1,length(indata));
+    for i = 1:length(indata)
+        tempdata = indata{i};
+        tempdata(isnan(tempdata)) = [];
+        indata{i} = tempdata;
+        numsubs(i) = size(tempdata,1);
+    end
+    clear i option
+    indata = cell2mat(indata);
+    option.method = 1;
+    option.num_perm = 500;
+    option.num_boot = 100;
+
+    K_res = pls_analysis({indata},numsubs(1),3,option);
+    FO_results{k} = K_res;
+end
+clear i k indata numsubs tempdata option K_res
+%% Assemble and plot p values
+FO_p = nan(1,9);
+for k = 1:9
+    temp = FO_results{k}.perm_result.sprob;
+    FO_p(k) = temp(1);
+end
+clear k temp
+%%
+figure
+bar(FO_p)
+grid on
+xticklabels([5:10,12,15,20])
+title('PLS p values variable K')
+set(gcf,'Color','w')
+%% Now correlate usc and vsc
+LV_corr = nan(1,11);
+for k = 1:9
+    u = FO_results{k}.usc;
+    v = FO_results{k}.vsc;
+    tempcorr = corrcoef(u,v);
+    LV_corr(k) = tempcorr(2,1);
+end
+clear k tempcorr u v
+%%
+figure
+bar(LV_corr)
+ylabel('r value')
+grid on
+xticklabels([5:10,12,15,20])
+title('USC VSC Correlations, LV1 Variable K')
+set(gcf,'Color','w')
+%% Look at the contrasts!
+res =FO_results{7}; % what results you want to plot
+LV = 1;% What LV you want to plot
+p = res.perm_result.sprob(LV);% the p-value of that LV
+headline = sprintf('K = 12 Res, p = %f',p);% the title with the p value
+xlabs = {'Rest';'Control';'Experiment'};
+
+figure
+%subplot(1,2,1)
+z = res.boot_result.orig_usc;
+limit = length(z);
+bar(z(:,LV))
+hold on
+yneg = res.boot_result.llusc(1:limit,LV);
+ypos = res.boot_result.ulusc(1:limit,LV);
+errorbar(1:length(z(1:limit,LV)),z(1:limit,LV),yneg-z(1:limit,LV),ypos-z(1:limit,LV),'.')
+colorbar off
+grid on
+xlim([0 length(z)+1])
+xticks(1:length(z))
+xticklabels(xlabs)
+xtickangle(45)
+title(headline,'FontSize',16)
+% both estimations show a contrast between rest and experiment!
+%% Try the dot product of the state means
+data = EEG_KTest.all_FC(4,1:8);
+mean_FC8 = nan(68,length(data));
+for i = 1:length(data)
+    tempdata = data{i};
+    tempdata(tempdata==1) = nan;
+    mean_FC8(:,i) = nanmean(tempdata,2);
+end
+clear data i tempdata
+
+data = EEG_Replication.all_FC(1,:);
+mean_FC12 = nan(68,length(data));
+for i = 1:length(data)
+    tempdata = data{i};
+    tempdata(tempdata==1) = nan;
+    mean_FC12(:,i) = nanmean(tempdata,2);
+end
+clear data i tempdata
+%%
+m12 = normalize(mean_FC12,1);
+m8 = normalize(mean_FC8,1);
+%%
+figure
+subplot(1,2,1)
+imagesc(m12)
+title('K = 12')
+ylabel('Region')
+xlabel('State')
+yticks(1:68)
+yticklabels(Rest_hmmPaper.lat_labs)
+colorbar
+
+subplot(1,2,2)
+imagesc(m8)
+colorbar
+title('K = 8')
+ylabel('Region')
+xlabel('State')
+yticks(1:68)
+yticklabels(Rest_hmmPaper.lat_labs)
+
+set(gcf,'Color','w')
+mdot = m12'*m8;
+figure
+imagesc(mdot)
+colorbar
+title('Dot Product: K = 5, K = 8')
+set(gcf,'Color','w')
+%%
