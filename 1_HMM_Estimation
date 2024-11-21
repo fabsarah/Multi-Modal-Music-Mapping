@@ -86,4 +86,26 @@ Outdata12.options = options;
 Outdata12.labs = your_ROI_labels;%put your own label file here
 Outdata12.N_nonempty = N_nonempty;% and get the non-empty index - we'll need this for reassembling the matrix into input order later
 
+%% 4.2 Now get a couple of measures for the next step (K validation):
+
+TP = getTransProbs(hmm);% transitional probabilities
+
+FO = zeros(length(T),K);% initialize a matrix for fractional occupancy
+FC = cell(K,1);% and for FC
+
+for j = 1:length(T)
+    ind = (1:length(T{j}) + (j-1) * length(T{j});%how long your indata was
+    FO(j,:) = mean(Gamma(ind,:));% get the Fractional occupancy for each cell
+end
+
+for i = 1:K % state FC
+    [~,S] = getFuncConn(hmm,i); %get that sweet, sweet correlation matrix
+    FC{i} = S; %populate the FC cell
+end
+
+Outdata12.Metrics.FO = FO;
+Outdata12.Metrics.TP = TP;
+Outdata12.Metrics.FC = FC;
+
+
 % and that's the HMM estimation! The next two script files deal with selecting and validating K. See you there!
