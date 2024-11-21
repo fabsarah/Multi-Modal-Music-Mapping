@@ -1,0 +1,61 @@
+%% Selecting a suitable K
+
+% Now that the HMM sequence is operational, it's time to run a bunch of HMMs!
+% K selection is extremely specific to the data modality, task, air temperature,
+% wind direction, and what you had for breakfast, but this script will cover:
+
+%    1. Looking at the transitional probability matrices
+%    2. Initial model tests
+%    3. Looking at the state properties
+
+% First, you need to have several HMM estimations run with different values
+% for K. Run these using the previous script, remembering to rename the Outdata
+% file so you don't lose many hours of time and data.
+
+% Next, you'll need to load them all in and assemble them into something that
+% is easier to index:
+
+K_tests{1} = Outdata3.Metrics;
+K_tests{2} = Outdata4.Metrics;
+K_tests{3} = Outdata5.Metrics;
+K_tests{4} = Outdata6.Metrics;
+K_tests{5} = Outdata7.Metrics;
+K_tests{6} = Outdata8.Metrics;
+K_tests{7} = Outdata9.Metrics;
+K_tests{8} = Outdata10.Metrics;
+K_tests{9} = Outdata12.Metrics;
+K_tests{10} = Outdata15.Metrics;
+K_tests{11} = Outdata20.Metrics;
+K_tests{12} = {'K3';'K4';'K5';'K6';'K7';'K8';'K9';'K10';'K12';'K15';'K20'};% a label file of all of the Ks
+
+%% 1. Examining transitional probability matrices:
+% In the paper, we did the following:
+
+%      We interrogated the transitional probability matrix from each estimation. The transitional probability 
+%      matrix shows the pairwise likelihood of transitioning to and from each state, represented as a weighted, 
+%      directed graph. Estimations with states that are over-represented (ie. always transitioned into) or 
+%      under-represented (ie. rarely or never visited) can be considered to poorly fit the data. We found the 
+%      estimations with a K of 8 and 12 fit the data best with a transitional probability matrix that did not 
+%      feature states strongly over- or under-represented. 
+
+% So let's look at some transitional probability matrices!
+labels = K_tests{12};
+
+figure
+for i = 1:length(K_tests)-1
+  tempdata = K_tests{i}.TP;
+  %clim([0 1]) % useful to see everything on the same scale
+  subplot(3,4,i)
+  imagesc(tempdata)
+  colorbar
+  title(sprintf('TP Matrix: %s',labels{i}),'FontSize',16)
+
+% and now take a look at the estimations. You want a matrix that doesn't have any states that are always or never
+% visited. These are the estimations we'll test further. Back to the paper:
+
+%      We further completed initial analyses on these data using PLS, comparing the rest and music listening conditions. 
+%      Both estimations returned one significant LV with a p value at or below 0.01 showing the contrast between the 
+%      resting state and experiment tasks. Finding both estimations equal up to this point, we interrogated the spatial 
+%      properties of the states. Each estimation featured states dominated by temporal regions, a comforting finding in a 
+%      music listening study. The estimation with a K of 12 featured bi- and uni-lateral temporal states, while the estimation 
+%      with a K of 8 showed exclusively bilateral temporal states.
