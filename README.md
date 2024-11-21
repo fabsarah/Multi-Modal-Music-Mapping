@@ -5,7 +5,8 @@ Code for running HMM, statistical analyses, and figure from Faber et al., 2025
 
 This repository contains the following:
 1. HMM Estimation for the EEG data
-3. HMM K tests and stability validation
+2. HMM K tests
+3. HMM stability validation
 4. Extracting metrics from HMM
 5. HMM Estimation for the music feature data
 6. HMM K tests and stability validation for the music feature data
