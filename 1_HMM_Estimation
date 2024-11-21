@@ -12,6 +12,7 @@
 %   2. Vectorizing the data matrix
 %   3. Initializing the HMM parameters
 %   4. Running/saving the HMM analysis
+%   5. Selecting a K value
 
 %% 1. Getting the non-empty index for rest and task
 %All_Data here is my cell array:
@@ -85,5 +86,4 @@ Outdata12.options = options;
 Outdata12.labs = your_ROI_labels;%put your own label file here
 Outdata12.N_nonempty = N_nonempty;% and get the non-empty index - we'll need this for reassembling the matrix into input order later
 
-% and that's the HMM estimation! The next two script files deal with validating K and 
-% extracting metrics (fractional occupancy, transitional probability, etc) from the estimation. 
+% and that's the HMM estimation! The next two script files deal with selecting and validating K. See you there!
