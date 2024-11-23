@@ -59,3 +59,11 @@ for i = 1:length(K_tests)-1
 %      properties of the states. Each estimation featured states dominated by temporal regions, a comforting finding in a 
 %      music listening study. The estimation with a K of 12 featured bi- and uni-lateral temporal states, while the estimation 
 %      with a K of 8 showed exclusively bilateral temporal states.
+
+% For these, you'll need the relevant fractional (FO) metrices:
+%get FO
+%assemble into PLS shape
+%add pls and link to read me
+%run the PLS
+%look at the results files
+%compare!
