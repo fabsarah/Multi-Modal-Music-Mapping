@@ -122,38 +122,43 @@ end
 clear i k indata numsubs tempdata option K_res n*
 
 
-%%%%%%%%%% START HERE %%%%%%%%%%%%%%%%%%%
-
 %% Assemble and plot p values
-FO_p = nan(3,9);
-for k = 1:9
-    temp = FO_results{k}.perm_result.sprob;
-    for LV = 1:3
+ncond = 3;
+FO_p = nan(3,length(FO_results));% we will have 1 LV per condition
+for k = 1:length(FO_results)
+    temp = FO_results{k}.perm_result.sprob;% get the array of p-values
+    for LV = 1:ncond
         FO_p(LV,k) = temp(LV);
     end
 end
 clear k temp LV %make look nice
+
 %%
 figure
-for LV = 1:3
-    subplot(3,1,LV)
+for LV = 1:ncond
+    subplot(ncond,1,LV)
     bar(FO_p(LV,:))
     grid on
     ylim([0 0.1])
-    xticklabels(K_testsDiadiDS.labels)
+    xticklabels(K_tests{12})%the labels we saved earlier
     title(sprintf('PLS p values, FO LV %d',LV))
 end
 clear LV
-%% Plot mean-centred PLS results
 
-res =K_testsDiadiDS.Metrics.FO_results{4}; % what results you want to plot
-LV = 2;% What LV you want to plot
+% Here, you should hopefully have at least one model with a significant LV. 
+% Next, we're going to go look at it:
+
+%% Plot mean-centred PLS results
+est = 4;%the estimation you want to plot
+res =FO_results{est}; % what results you want to plot
+K = size(FO_data{est},2);% the number of states/K for this estimation
+LV = 1;% What LV you want to plot
 p = res.perm_result.sprob(LV);% the p-value of that LV
 headline = sprintf('K Test PLS, p = %f',p);% the title with the p value
-xlabs = {'Baseline start' ,'Far vision','Far No Vision',...
-    'Near vision','Near no vision','Positive control','Baseline end'};
+xlabs = {'Rest';'Control';'Experiment'};%for example
 
 figure
+% The first plot are your contrasts: what conditions are in contrast vs. loading together
 subplot(1,2,1)
 z = res.boot_result.orig_usc;
 limit = length(z);
@@ -170,38 +175,46 @@ xticklabels(xlabs)
 xtickangle(45)
 title(headline,'FontSize',16)
 
+% The second plot are your saliences: which state's FO is linked to that effect:
 x = (res.boot_result.compare_u(:,LV));
-x(abs(x)<3) = 0;
-%plotdata = reshape(x,4,[]);
+%x(abs(x)<3) = 0;%optional thresholding of the plot
 subplot(1,2,2)
-shower_tile_plot(x);
-colormap(rgb)
-clim([-10 10])
+imagesc(x);
+%colormap(rgb) %optional colormap, included at the bottom of this document
+%clim([-8 8])
 colorbar
 xticks([])
-yticks(1.5:length(x)+0.5)
-yticklabels(length(x):-1:1)     
+yticks(1:K)
+yticklabels(1:K)     
 ylabel('State')
 title(sprintf('Fractional Occupancy LV %d',LV),'FontSize',16)
+
+% to interpret this, you want to line up the cool colour saliences with the negative contrasts, and the warm colour
+% saliences with the positive contrasts. NOTE: +/- values here DON'T NECESSARILY MEAN lower or higher FO...it's just
+% showing you where the effect is in your input data. We'll plot the indata in a different script
 
 clear res LV p xlabs tasks limit ypos yneg ans x z plotdata headline
 
 %% Now correlate usc and vsc. This will tell us which estimations are similar/dissimilar to each other estimation
-LV_corr = nan(1,9);
-for k = 1:9
+LV_corr = nan(1,length(FO_results));
+for k = 1:length(FO_results)
     u = FO_results{k}.usc;
     v = FO_results{k}.vsc;
     tempcorr = corrcoef(u,v);
     LV_corr(k) = tempcorr(2,1);
 end
 clear k tempcorr u v
+
 %%
 figure
 bar(LV_corr)
 ylabel('r value')
 grid on
-xticklabels(K_testsDiadiDS.labels)
+xticklabels(K_tests{12})
 title('USC VSC Correlations, LV1 Variable K')
+
+% By now, one estimation will have hopefully emerged victorious! But if you're interested in looking at transitional probability, 
+% we can run the same sequence with those matrices (plus some fun matrix vectorization and reassembly):
 
 %% Transitional Probability by Condition
 % Assemble everything into a new object
