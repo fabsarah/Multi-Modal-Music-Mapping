@@ -53,6 +53,8 @@ for i = 1:length(K_tests)-1
 % and now take a look at the estimations. You want a matrix that doesn't have any states that are always or never
 % visited. These are the estimations we'll test further. Back to the paper:
 
+%% 2. Running PLSes on each estimation's fractional occupancy:
+
 %      We further completed initial analyses on these data using PLS, comparing the rest and music listening conditions. 
 %      Both estimations returned one significant LV with a p value at or below 0.01 showing the contrast between the 
 %      resting state and experiment tasks. Finding both estimations equal up to this point, we interrogated the spatial 
@@ -60,8 +62,9 @@ for i = 1:length(K_tests)-1
 %      music listening study. The estimation with a K of 12 featured bi- and uni-lateral temporal states, while the estimation 
 %      with a K of 8 showed exclusively bilateral temporal states.
 
-% For these, you'll need the relevant fractional (FO) metrices:
-%get FO
+% For these, you'll need the relevant fractional (FO) metrices. I've included ALL of them here, but you can also choose the ones
+% with the best looking TP matrices:
+
 %% Assemble fractional occupancy (FO) into a new object
 FO_data{1} = K_tests{1}.FO;
 FO_data{2} = K_tests{2}.FO;
