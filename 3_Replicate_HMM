@@ -1,6 +1,6 @@
 %% Replicating the HMM run 
 % This script is for validating and replicating HMM estimations. We will first
-% run a bunch of HMM estimations, then test them. 
+% run a bunch of HMM estimations with the optimal K, then test them for stability! 
 
 % The first part of this script is copied from the HMM_Estimation code. This
 % version is less commented (for now)
@@ -34,7 +34,7 @@ rgb = [ ...
    182    33    72
    158     1    66  ] / 255; 
 
-%% Get the data
+%% 1. Get the data
 %load('All_Data.mat')
 
 %% Getting the non-empty index for rest and task
@@ -48,42 +48,47 @@ end
 
 clear inmat subject subjectdata
 
-%% Vectorizing
+%% 2. Vectorizing
 
-data = reshape(All_Data,[],1);%reshaping the data
-index = cellfun(@isempty, data) == 0;
-data = data(index);
+data = reshape(All_Data,[],1);%reshape the data
+index = cellfun(@isempty, data) == 0;%find the empty cells
+data = data(index);%destroy them! (keep only the full cells)
 clear index
 
-%% Prep: Parameter Estimation
-clear T
-K = 12; % number of states
-ndim = 68; % number of channels
-N = 1; % number of trials (songs not repeated)
+%% 3. Initializing Parameters
+clear T % make sure there isn't another T kicking around
+K = 12; % number of states you want
+ndim = 68; % number of channels/sources/regions you have
+time = 10;% number of timepoints you have per trial
+N = 1; % number of trials (my procedure didn't repeat anything, so N=1)
 Fs = 512;% sampling rate
-t_task = 40;%time of tasks in seconds
-T(1:length(data)) = {(Fs*t_task * ones(N,1))}; % number of data points per task (40 seconds*Fs = 20480)
-T = T';%transposing
+T(1:length(data)) = {(Fs*time * ones(N,1))}; % number of data points per song (10 seconds*Fs = 5120)
+T = T';%transposing the T vector to match the dimensionality of our data vector
 
-%% Prep: Setting the initialization parameters
-clear options
+%% 3.1 Setting the initialization parameters
+% A lot of the parameterization for HMM is very dependent on the type of data and the type of task
+% you have. I have continuous, source-localized EEG data, and these are the parameters I used. The
+% HMM-MAR toolbox goes over a lot of these in their wiki, which is very helpful: 
+% https://github.com/OHBA-analysis/HMM-MAR/wiki
+
+clear options % make sure there isn't an old options file in the workspace
 options = struct();
 options.K = K; 
 options.Fs = Fs;
 options.covtype = 'full';
 options.zeromean = 0;
-options.standardise_pc = 1;
-options.onpower = 1;%Built-in Hilbert
-options.DirichletDiag = 10;
-options.downsample = 256;%downsample the data
-options.detrend = 1;
-options.pca = 0.90;% 90% of variance captured
-options.useParallel=1;
-options.verbose = 1;
-options.initrep = 1; % Initialize more quickly
-options.initcyc = 1; % Always choose the first initialization
-options.cyc = 90; % Maximum of  90 cycles
-
+options.standardise = 1;
+options.onpower = 1;% Built-in Hilbert...good for EEG
+options.DirichletDiag = 10;% keeps states maximally distinct
+options.downsample = 256;% downsample the data (this will also be applied to T - yay!)
+options.detrend = 1;% detrending, for slow drifts
+options.pca = 0.90;% PCA-ing the data to save time, 90% of variance captured
+options.useParallel=1;% if you don't have parallel computing, set this to 0. My condolences, it will take more time
+options.verbose = 1;%tells you what's happening
+%the following can be toggled to save time, useful when running many estimations:
+%options.initrep = 1; % Initialize more quickly
+%options.initcyc = 1; % Always choose the first initialization
+%options.cyc = 90; % Maximum of  90 cycles
 
 %% Initializing matrices for the output data:
 % we want to compare free energy and fractional occupancy
@@ -93,7 +98,7 @@ replications = 50;
 FreeEnergy = zeros(replications,1);
 all_FE = cell(replications,1);
 
-% fractional occupancy, and switching rate
+% fractional occupancy
 K = 12;
 num_dims = length(data);%how many cells are in the original data
 FO = zeros(num_dims,K);% 
@@ -103,7 +108,9 @@ all_FO = cell(replications,1);
 all_FC = cell(replications,12);
 all_TP = cell(replications,1);
 
-%% Run the HMM a lot of times
+%% 4. Run the HMM a lot of times
+% Make some tea, rearrange your tabs, etc
+
 for r = 1:replications
     [hmm,Gamma] = hmmmar(data,T,options);
 
@@ -129,7 +136,10 @@ HMM_Replication.all_FO = all_FO;
 HMM_Replication.all_FC = all_FC;
 HMM_Replication.all_TP = all_TP;
 
-%% compare the estimations for consistency
+%% 5. compare the estimations for consistency
+% In this section, we're using the STATIS toolbox. If you don't already
+% have it, it's linked in the read me
+
 addpath(genpath('STATIS-main'));
 
 temp_in = [HMM_Replication.all_FC'];
@@ -155,7 +165,7 @@ xlabel('States')
 set(gcf,'Color','w')
 set(gca,'FontSize',16,'FontName','Helvetica')
 
-%% Now the meta-FE:
+%% 6. Now the meta-FE:
 
 all_FE = [HMM_Replication.all_FE];
 one_FE = nan(replications,1);
@@ -181,28 +191,6 @@ xlabel('HMM Model Runs')
 set(gca,'FontSize',16,'FontName','Helvetica')
 set(gcf,'Color','w')
 
-%% Now the mean states:
-num_dims = 68;% how many regions we have in the FC matrix
-temp_in = nan(num_dims,num_dims,replications);
-
-for rep = 1:replications
-    tempcell = EEG_Replication.all_FC(rep,:);
-    tempcell = cat(3,tempcell{:});
-    tempcell = mean(tempcell,3);
-    temp_in(:,:,rep) = tempcell;
-end
-
-mean_Result = distatis2(temp_in);
-
-clear rep temp*
-
-%% Look at C
-figure
-imagesc(mean_Result.C)
-colorbar
-xticks([])
-yticks([])
-xlabel('States')
-ylabel('States')
-clim([0 1])
-colormap(rgb)
+% Here, what we hope to see is FE fluctuating around the mean with a low standard deviation. If you have that,
+% and the STATIS gave you a good degree of similarity on your FCs, the estimation is stable and we can carry on
+% with the analysis!
